@@ -1,5 +1,15 @@
-const debug = 1;
-export const dlog = (...msg: any[]) => {
+let debug = false;
+
+export const strToBool = (mbstr: string | undefined): boolean =>
+  mbstr ? mbstr.toLowerCase() == "true" : false;
+
+export const strToInt = (mbstr: string | undefined): number =>
+  mbstr ? parseInt(mbstr, 10) : 0;
+
+export const init_debug = () => {
+  debug = strToBool(process.env.DEBUG);
+};
+export const dlog = function (...msg: any[]) {
   debug && console.info(Date.now(), ...msg);
 };
 
@@ -28,3 +38,5 @@ export const tryFmtDate = (
       return fb;
   }
 };
+
+export const die = (code: number = 1) => process.exit(1);

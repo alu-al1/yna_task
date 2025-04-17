@@ -1,7 +1,16 @@
 import { WebSocket } from "ws";
+import { URL } from "url"; // same as ws uses
 
 import { IClonable, IReflectable, IProtocol, ITimed } from "./iface";
-import { dlog, Duration, now, Timestamp, tryFmtDate } from "./shared";
+import {
+  dlog,
+  die,
+  Duration,
+  init_debug,
+  now,
+  Timestamp,
+  tryFmtDate,
+} from "./shared";
 import { expectedServerSeq, toleranceMsDefault } from "./preset";
 import {
   NothingToDo,
@@ -27,7 +36,7 @@ type metrics = {
   tolerancems: Duration;
 };
 
-type SeqEl = (IProtocol & IClonable & ITimed & IReflectable)
+type SeqEl = IProtocol & IClonable & ITimed & IReflectable;
 
 //TODO can also be bound to some logger; using clog and cerr for now
 export class WSClient {
@@ -41,11 +50,7 @@ export class WSClient {
   private metrics: metrics = { b: 0, a: 0, tolerancems: toleranceMsDefault };
   private seqcur: number = CURSOR_NOT_SET;
 
-  constructor(
-    wso: ClientOptions,
-    seq: SeqEl[],
-    tolerancems?: number
-  ) {
+  constructor(wso: ClientOptions, seq: SeqEl[], tolerancems?: number) {
     this.wso = wso;
     this.seq = seq.map((el) => el.clone());
     this.seqcur = +(this.seq.length > 0) - 1;
@@ -65,10 +70,10 @@ export class WSClient {
   private emit_ok(message: string, m: metrics) {
     console.info(`Protocol OK: \“${message}\“ received at ${tryFmtDate(m.a)}`);
   }
-  private emit_err(message: string, el: SeqEl, m: metrics) {    
-    const expected = m.b + el.asMs()
-    const got = m.a
-    
+  private emit_err(message: string, el: SeqEl, m: metrics) {
+    const expected = m.b + el.asMs();
+    const got = m.a;
+
     console.error(
       `Protocol ERR: expected \“${message}\” between ${tryFmtDate(
         expected - m.tolerancems
@@ -88,7 +93,6 @@ export class WSClient {
       this.emit_ok(msg, { ...this.metrics });
       this.advanceMetrics();
       this.seqcur += 1 % this.seq.length;
-
     } catch (e) {
       dlog("got error", e);
       //TODO respect Protocol, Protocol sequence and general errors
@@ -98,6 +102,8 @@ export class WSClient {
     }
   }
 
+  //TODO wrap sending message to be able to reset metrics.b
+  // all this step can be packed into a custom validators collection + validation strategies
   private validate(msg: string): throwsTypedErrors {
     this.metrics.a = now();
     if (this.seqcur == CURSOR_NOT_SET)
@@ -137,13 +143,39 @@ export class WSClient {
   }
 }
 
+let url: string | undefined = "";
+
+function usage() {
+  const [cmd, entrypoint] = process.argv;
+  console.error(
+    `USAGE: WSS_URL="ws(s)?://host:port" [DEBUG=false] ${cmd} ${entrypoint}`
+  );
+}
+
+function init() {
+  try {
+    init_debug();
+
+    {
+      url = process.env.WSS_URL;
+      new URL(url as string);
+    }
+  } catch (e) {
+    e instanceof TypeError &&
+      e.message.indexOf("URL") > -1 &&
+      console.error("ERROR: WSS_URL:"+ e.message);
+    usage();
+    die();
+  }
+}
+
 function main() {
-  new WSClient(
-    { url: "ws://localhost:8080" },
-    expectedServerSeq
-  ).connectAndPoll();
+  new WSClient({ url: url as string }, expectedServerSeq).connectAndPoll();
 }
 
 //TODO listen to os signals to be able to shutdown gracefully
 // https://nodejs.org/api/modules.html#accessing-the-main-module
-if (require.main === module) main();
+if (require.main === module) {
+  init();
+  main();
+}
