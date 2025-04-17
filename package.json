@@ -1,0 +1,24 @@
+{
+  "name": "ws_rev1",
+  "version": "1.0.0",
+  "main": "",
+  "scripts": {
+    "probe_tools": "tsc -help",
+    "xprobe_tools": "node run probe_tools && jq --version",
+    "build": "tsc --project tsconfig.json",
+    "build_server": "TODO: build server and out to build dir",
+    "server":"node build/server.js",
+    "client":"node build/client.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "typescript": "^5.8.3",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
+  }
+}
