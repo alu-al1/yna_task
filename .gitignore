@@ -68,6 +68,8 @@ package-lock.json
 /lib/
 
 *.js
+!jest.config.js
+!jest.sequencer.js
 build
 
 ## my usual stuff
