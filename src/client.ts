@@ -10,6 +10,7 @@ import {
   now,
   Timestamp,
   tryFmtDate,
+  isDebugEnabled,
 } from "./shared";
 import { expectedServerSeq, toleranceMsDefault } from "./preset";
 import {
@@ -66,11 +67,16 @@ export class WSClient {
     }
   }
 
-  //copying metrics for now to reduce repr-state coupling as long as metrics instance is shared between validation processes. Can be reduced to dates or just got from the original src
-  private emit_ok(message: string, m: metrics) {
-    console.info(`Protocol OK: \“${message}\“ received at ${tryFmtDate(m.a)}`);
+  //copying metrics for now to reduce repr-to-state coupling as long as metrics instance is shared between validation processes. Can be reduced to dates or just got from the original src
+
+  private emit_ok(message: string, m: metrics, el?: SeqEl) {
+    let msg = `Protocol OK: \“${message}\“ received at ${tryFmtDate(m.a)}`;
+    if (!!el)
+      msg += `;act delay: ${m.a - m.b} ms; step set delay: ${el.asMs()} ms; tolerance (+-): ${m.tolerancems} ms;`;
+    
+    console.info(msg);
   }
-  private emit_err(message: string, el: SeqEl, m: metrics) {
+  private emit_err(message: string, m: metrics, el: SeqEl) {
     const expected = m.b + el.asMs();
     const got = m.a;
 
@@ -90,14 +96,19 @@ export class WSClient {
     try {
       //implicit conv any to str is ok as String is fail-proof
       this.validate(msg);
-      this.emit_ok(msg, { ...this.metrics });
+      //TODO mb? emit_x SeqEl abstraction leak can be resolved with an additional getter
+      this.emit_ok(
+        msg,
+        { ...this.metrics },
+        isDebugEnabled() ? this.seq[this.seqcur].clone() : undefined
+      );
       this.advanceMetrics();
       this.seqcur += 1 % this.seq.length;
     } catch (e) {
       dlog("got error", e);
       //TODO respect Protocol, Protocol sequence and general errors
       //we haven't advanced the cur so it is safe to get some data for the report
-      this.emit_err(msg, this.seq[this.seqcur], { ...this.metrics });
+      this.emit_err(msg, { ...this.metrics }, this.seq[this.seqcur]);
       this.die();
     }
   }
@@ -163,7 +174,7 @@ function init() {
   } catch (e) {
     e instanceof TypeError &&
       e.message.indexOf("URL") > -1 &&
-      console.error("ERROR: WSS_URL:"+ e.message);
+      console.error("ERROR: WSS_URL:" + e.message);
     usage();
     die();
   }

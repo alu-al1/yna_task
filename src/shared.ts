@@ -1,5 +1,7 @@
 let debug = false;
 
+export const isDebugEnabled = () => !!debug
+
 export const strToBool = (mbstr: string | undefined): boolean =>
   mbstr ? mbstr.toLowerCase() == "true" : false;
 
