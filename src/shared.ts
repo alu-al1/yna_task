@@ -1,3 +1,5 @@
+import { exit } from 'process';
+
 let debug = false;
 
 export const isDebugEnabled = () => !!debug
@@ -42,4 +44,5 @@ export const tryFmtDate = (
   }
 };
 
-export const die = (code: number = 1) => process.exit(1);
+// alt set exit code to process
+export const die = (code: number = 1) => exit(code);
