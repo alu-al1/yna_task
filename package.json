@@ -5,20 +5,28 @@
   "scripts": {
     "probe_tools": "tsc -help",
     "xprobe_tools": "node run probe_tools && jq --version",
+    
+    "clean": "rm -rf build/*",
     "build": "tsc --project tsconfig.json",
-    "build_server": "TODO: build server and out to build dir",
+
+    "build_server": "tsc src/server.ts --outDir build",
+    "xbuild_server": "tsc src/server.ts --outDir $(tsc --project tsconfig.json --showConfig | jq -r '.compilerOptions.outDir')",
+
+    "build_client": "tsc src/client.ts --outDir build",
+    "xbuild_client": "tsc src/client.ts --outDir $(tsc --project tsconfig.json --showConfig | jq -r '.compilerOptions.outDir')",
+    
     "server":"node build/server.js",
     "client":"node build/client.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "alu_al1",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "typescript": "^5.8.3",
-    "ws": "^8.18.1"
+    "typescript": "5.8.3",
+    "ws": "8.18.1"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.1"
+    "@types/ws": "8.18.1"
   }
 }
