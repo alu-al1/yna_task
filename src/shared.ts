@@ -8,8 +8,9 @@ export const strToBool = (mbstr: string | undefined): boolean =>
 export const strToInt = (mbstr: string | undefined): number =>
   mbstr ? parseInt(mbstr, 10) : 0;
 
-export const init_debug = () => {
-  debug = strToBool(process.env.DEBUG);
+export const init_debug = (src: Record<string, string | undefined> = process.env) => {
+  debug = strToBool(src.DEBUG);
+  console.info(Date.now(), "DEBUG: enabled")
 };
 export const dlog = function (...msg: any[]) {
   debug && console.info(Date.now(), ...msg);
