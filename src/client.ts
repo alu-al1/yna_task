@@ -125,8 +125,13 @@ function main(url: any) {
 
   wsc.on("message", processMessage);
   wsc.on("open", () => {
-    wsmetrics.a = now();
+    if (!seq.length) {
+      //nothing to do
+      console.error("nothing to do");
+      die();
+    }
 
+    wsmetrics.a = now();
     {
       cur = +(seq.length > 0) - 1;
       advanceMetrics(wsmetrics);
