@@ -1,7 +1,6 @@
 import { execSync, spawn } from "child_process";
 import * as path from "path";
 
-// import { dlog, init_debug } from "../shared";
 // init_debug({ DEBUG: "true" });
 
 const prefix = "['show usage' tests]";
@@ -12,8 +11,6 @@ const builddir = "build";
 const serverJS = path.resolve(__dirname, "..", "..", builddir, "server.js");
 const clientJS = path.resolve(__dirname, "..", "..", builddir, "client.js");
 
-//quick test mute
-const xtest = (_: string, __: any) => {};
 
 const get_node_path = (): string => path.dirname(process.argv[0]);
 
