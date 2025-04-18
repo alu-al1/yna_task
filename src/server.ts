@@ -1,11 +1,9 @@
-import { WebSocketServer, ServerOptions } from "ws";
+import { WebSocketServer, WebSocket, ServerOptions } from "ws";
 
-import { die, strToInt } from "./shared";
+import { connIsAlive, die, strToInt } from "./shared";
 import { IProtocol, IClonable } from "./iface";
 import { expectedServerSeq } from "./preset";
 import { dlog, init_debug } from "./logger";
-
-const connIsAlive = (conn: WebSocket) => conn.OPEN || conn.CONNECTING;
 
 export class WSServer {
   private wso: ServerOptions = {};
@@ -25,6 +23,7 @@ export class WSServer {
 
   private async serveSeq(conn: WebSocket) {
     for (let el of this.seq) {
+      if (!connIsAlive(conn)) break;
       await el.wait();
       dlog("answering");
       el.write(conn);

@@ -5,6 +5,7 @@ import { URL } from "url"; // same as ws uses
 
 import { IClonable, IReflectable, IProtocol, ITimed, ILogger } from "./iface";
 import {
+  connIsAlive,
   die,
   Duration,
   now,
@@ -18,7 +19,13 @@ import {
   ServerResponseTooSlow,
   ServerResponseUnexpectedMessage,
 } from "./errors";
-import { ConsoleLogger, dlog, dummyLogger, init_debug, isDebugEnabled } from "./logger";
+import {
+  ConsoleLogger,
+  dlog,
+  dummyLogger,
+  init_debug,
+  isDebugEnabled,
+} from "./logger";
 import { expectedServerSeq, toleranceMsDefault } from "./preset";
 
 export type WSurl = string | URL;
@@ -45,7 +52,7 @@ type SeqEl = IProtocol & IClonable & ITimed & IReflectable;
 //TODO can also be bound to some logger; using clog and cerr for now
 export class WSClient {
   private wso: ClientOptions = { url: "" };
-  private _wsc: WebSocket | null = null;
+  private _wsc?: WebSocket;
   private _logger: ILogger = dummyLogger;
   private seq: SeqEl[] = [];
 
@@ -70,7 +77,7 @@ export class WSClient {
 
   isAlive() {
     //without !! null can be returned in _wsc never was opened
-    return !!(this._wsc && this._wsc.readyState == this._wsc.OPEN);
+    return connIsAlive(this._wsc);
   }
 
   //keeping it public for test purposes
@@ -101,7 +108,7 @@ export class WSClient {
   private emit_err(message: string, m: metrics, el: SeqEl) {
     const expected = m.b + el.asMs();
 
-    let msg = `Protocol ERR: expected \“${message}\” between ${tryFmtDate(
+    let msg = `Protocol ERR: expected \“${el.getPayload()}\” between ${tryFmtDate(
       expected - m.tolerancems
     )} and ${tryFmtDate(expected + m.tolerancems)}`;
 
@@ -119,7 +126,7 @@ export class WSClient {
   }
   private resumeTimingsMonitoring() {
     if (this.seqcur >= this.seq.length) return;
-    
+
     const nextExpecting = this.seq[this.seqcur];
     this.expMesgMaxTo = setTimeout(() => {
       // TooSlow
@@ -139,10 +146,13 @@ export class WSClient {
   //TODO should not block reading but any subsequent readings should use its own metrics
   private process(msg: any) {
     try {
-      this.pauseTimingsMonitoring();
+      {
+        this.pauseTimingsMonitoring();
+        this.metrics.a = now();
+      }
+
       //implicit conv any to str is ok as String is fail-proof
       this.validate(msg);
-      //TODO mb? emit_x SeqEl abstraction leak can be resolved with an additional getter
       this.emit_ok(
         msg,
         { ...this.metrics },
@@ -154,10 +164,9 @@ export class WSClient {
         // but in this case some server message should be defined that will act like "open" event acts now
         // otherwise we will fail with serverTooSlow on the first message after the cur reset
         this.seqcur++;
+        this.advanceMetrics();
+        this.resumeTimingsMonitoring();
       }
-
-      this.advanceMetrics();
-      this.resumeTimingsMonitoring();
     } catch (e) {
       dlog("got error", e);
       //TODO respect Protocol, Protocol sequence and general errors
@@ -170,8 +179,6 @@ export class WSClient {
   //TODO wrap sending message to be able to reset metrics.b
   // all this step can be packed into a custom validators collection + validation strategies
   private validate(msg: string): throwsTypedErrors {
-    this.metrics.a = now();
-
     const curseq = this.seq[this.seqcur];
     const deltaAct = this.metrics.a - this.metrics.b;
     const deltaExpected = curseq.asMs();
@@ -198,12 +205,8 @@ export class WSClient {
 
     this._wsc = new WebSocket(this.wso.url);
     this._wsc.on("message", (msg) => this.process(msg));
-    //TODO mb? here we can reuse advanceMetrics() which can move cur from -1 to 0 and update ts
-    //...TODO mb? this approach may have some benefits
-    // ...TODO mb? yet the readability will definitely suffer
     this._wsc.on("open", () => {
       this.metrics.a = now();
-
       this.advanceMetrics();
       this.resumeTimingsMonitoring();
     });
