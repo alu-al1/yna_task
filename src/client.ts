@@ -118,9 +118,9 @@ export class WSClient {
     clearTimeout(this.expMesgMaxTo);
   }
   private resumeTimingsMonitoring() {
-    const nextExpecting = this.seq[this.seqcur];
     if (this.seqcur >= this.seq.length) return;
-
+    
+    const nextExpecting = this.seq[this.seqcur];
     this.expMesgMaxTo = setTimeout(() => {
       // TooSlow
       this.emit_err(
