@@ -1,22 +1,10 @@
-import { exit } from 'process';
-
-let debug = false;
-
-export const isDebugEnabled = () => !!debug
+import { exit } from "process";
 
 export const strToBool = (mbstr: string | undefined): boolean =>
   mbstr ? mbstr.toLowerCase() == "true" : false;
 
 export const strToInt = (mbstr: string | undefined): number =>
   mbstr ? parseInt(mbstr, 10) : 0;
-
-export const init_debug = (src: Record<string, string | undefined> = process.env) => {
-  debug = strToBool(src.DEBUG);
-  console.info(Date.now(), "DEBUG: enabled")
-};
-export const dlog = function (...msg: any[]) {
-  debug && console.info(Date.now(), ...msg);
-};
 
 export type Timestamp = number;
 export type Duration = number;

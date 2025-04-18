@@ -8,5 +8,7 @@ export class ServerResponseTooSlow extends Error {}
 export class ServerResponseTooQuick extends Error {}
 export class ServerResponseUnexpectedMessage extends Error {}
 
+export class ClientAlreadyBusy extends Error {}
+
 
 export class NothingToDo extends Error {}

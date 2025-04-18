@@ -1,8 +1,9 @@
 import { WebSocketServer, ServerOptions } from "ws";
 
-import { dlog, die, init_debug, strToBool, strToInt } from "./shared";
+import { die, strToInt } from "./shared";
 import { IProtocol, IClonable } from "./iface";
 import { expectedServerSeq } from "./preset";
+import { dlog, init_debug } from "./logger";
 
 const connIsAlive = (conn: WebSocket) => conn.OPEN || conn.CONNECTING;
 
@@ -37,6 +38,13 @@ export class WSServer {
       } catch (_) {}
   }
 
+  //for testing purposes
+  die() {
+    try {
+      this._wss?.close();
+    } catch (_) {}
+  }
+
   async serve() {
     this._wss = new WebSocketServer(this.wso);
     this._wss.on("connection", async (conn: WebSocket) => {
@@ -44,6 +52,10 @@ export class WSServer {
     });
     //TODO on close - check if premature
     dlog("listening...");
+  }
+
+  onclose(listener: () => void) {
+    this._wss?.on("close", listener);
   }
 }
 
@@ -70,7 +82,7 @@ function init() {
   }
 }
 
-function main() {
+function main(port: number) {
   new WSServer({ port }, expectedServerSeq).serve();
 }
 
@@ -78,5 +90,5 @@ function main() {
 // https://nodejs.org/api/modules.html#accessing-the-main-module
 if (require.main === module) {
   init();
-  main();
+  main(port);
 }

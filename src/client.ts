@@ -1,24 +1,25 @@
+//TODO mb check if alive on each validate and such events
+
 import { WebSocket } from "ws";
 import { URL } from "url"; // same as ws uses
 
-import { IClonable, IReflectable, IProtocol, ITimed } from "./iface";
+import { IClonable, IReflectable, IProtocol, ITimed, ILogger } from "./iface";
 import {
-  dlog,
   die,
   Duration,
-  init_debug,
   now,
   Timestamp,
   tryFmtDate,
-  isDebugEnabled,
 } from "./shared";
-import { expectedServerSeq, toleranceMsDefault } from "./preset";
 import {
+  ClientAlreadyBusy,
   NothingToDo,
   ServerResponseTooQuick,
   ServerResponseTooSlow,
   ServerResponseUnexpectedMessage,
 } from "./errors";
+import { ConsoleLogger, dlog, dummyLogger, init_debug, isDebugEnabled } from "./logger";
+import { expectedServerSeq, toleranceMsDefault } from "./preset";
 
 export type WSurl = string | URL;
 export type ClientOptions = { url: WSurl }; // can be expanded
@@ -39,28 +40,45 @@ type metrics = {
 
 type SeqEl = IProtocol & IClonable & ITimed & IReflectable;
 
+//TODO acts like sync emitter
+
 //TODO can also be bound to some logger; using clog and cerr for now
 export class WSClient {
   private wso: ClientOptions = { url: "" };
   private _wsc: WebSocket | null = null;
-
+  private _logger: ILogger = dummyLogger;
   private seq: SeqEl[] = [];
 
   //single session for now, can be upgraded to simple session storage {seq, cur, metrics}
 
   private metrics: metrics = { b: 0, a: 0, tolerancems: toleranceMsDefault };
   private seqcur: number = CURSOR_NOT_SET;
+  private expMesgMaxTo?: NodeJS.Timeout;
 
-  constructor(wso: ClientOptions, seq: SeqEl[], tolerancems?: number) {
+  constructor(
+    wso: ClientOptions,
+    seq: SeqEl[],
+    tolerancems?: number,
+    logger: ILogger = new ConsoleLogger()
+  ) {
     this.wso = wso;
     this.seq = seq.map((el) => el.clone());
     this.seqcur = +(this.seq.length > 0) - 1;
     if (tolerancems && tolerancems > -1) this.metrics.tolerancems = tolerancems;
+    this._logger = logger;
+  }
+
+  isAlive() {
+    //without !! null can be returned in _wsc never was opened
+    return !!(this._wsc && this._wsc.readyState == this._wsc.OPEN);
   }
 
   //keeping it public for test purposes
   die() {
-    if (this._wsc && (this._wsc.OPEN || this._wsc.CONNECTING)) {
+    if (
+      this._wsc &&
+      this._wsc.readyState in [this._wsc.OPEN, this._wsc.CONNECTING]
+    ) {
       try {
         this._wsc.close();
       } catch (_) {}
@@ -72,28 +90,56 @@ export class WSClient {
   private emit_ok(message: string, m: metrics, el?: SeqEl) {
     let msg = `Protocol OK: \“${message}\“ received at ${tryFmtDate(m.a)}`;
     if (!!el)
-      msg += `;act delay: ${m.a - m.b} ms; step set delay: ${el.asMs()} ms; tolerance (+-): ${m.tolerancems} ms;`;
-    
-    console.info(msg);
+      msg += `;act delay: ${
+        m.a - m.b
+      } ms; step set delay: ${el.asMs()} ms; tolerance (+-): ${
+        m.tolerancems
+      } ms;`;
+
+    this._logger.ok(msg);
   }
   private emit_err(message: string, m: metrics, el: SeqEl) {
     const expected = m.b + el.asMs();
-    const got = m.a;
 
-    console.error(
-      `Protocol ERR: expected \“${message}\” between ${tryFmtDate(
-        expected - m.tolerancems
-      )} and ${tryFmtDate(expected + m.tolerancems)} but got ${tryFmtDate(got)}`
-    );
+    let msg = `Protocol ERR: expected \“${message}\” between ${tryFmtDate(
+      expected - m.tolerancems
+    )} and ${tryFmtDate(expected + m.tolerancems)}`;
+
+    if (false) msg += `but got ${tryFmtDate(m.a)}`;
+
+    this._logger.err(msg);
   }
   private advanceMetrics() {
     this.metrics.b = this.metrics.a;
     this.metrics.a = 0;
   }
 
+  private pauseTimingsMonitoring() {
+    clearTimeout(this.expMesgMaxTo);
+  }
+  private resumeTimingsMonitoring() {
+    const nextExpecting = this.seq[this.seqcur];
+    if (this.seqcur >= this.seq.length) return;
+
+    this.expMesgMaxTo = setTimeout(() => {
+      // TooSlow
+      this.emit_err(
+        nextExpecting.getPayload(),
+        { ...this.metrics },
+        nextExpecting
+      );
+      this.die();
+    }, nextExpecting.asMs() + this.metrics.tolerancems - (now() - this.metrics.b));
+  }
+
+  onclose(listener: (this: WebSocket, code: number, reason: Buffer) => void) {
+    this._wsc?.on("close", listener);
+  }
+
   //TODO should not block reading but any subsequent readings should use its own metrics
   private process(msg: any) {
     try {
+      this.pauseTimingsMonitoring();
       //implicit conv any to str is ok as String is fail-proof
       this.validate(msg);
       //TODO mb? emit_x SeqEl abstraction leak can be resolved with an additional getter
@@ -102,8 +148,16 @@ export class WSClient {
         { ...this.metrics },
         isDebugEnabled() ? this.seq[this.seqcur].clone() : undefined
       );
+
+      {
+        // alt: use this.seqcur += 1 % this.seq.length if you want to roll back to the beguinning of the sequence
+        // but in this case some server message should be defined that will act like "open" event acts now
+        // otherwise we will fail with serverTooSlow on the first message after the cur reset
+        this.seqcur++;
+      }
+
       this.advanceMetrics();
-      this.seqcur += 1 % this.seq.length;
+      this.resumeTimingsMonitoring();
     } catch (e) {
       dlog("got error", e);
       //TODO respect Protocol, Protocol sequence and general errors
@@ -117,10 +171,6 @@ export class WSClient {
   // all this step can be packed into a custom validators collection + validation strategies
   private validate(msg: string): throwsTypedErrors {
     this.metrics.a = now();
-    if (this.seqcur == CURSOR_NOT_SET)
-      throw new NothingToDo(
-        "the seq of protocol elements to monitor is probably not set"
-      );
 
     const curseq = this.seq[this.seqcur];
     const deltaAct = this.metrics.a - this.metrics.b;
@@ -128,8 +178,6 @@ export class WSClient {
 
     //can be refactored to if..else if... else if... else
     //but I will keep it this way for now not to clog the impl
-    if (deltaAct > deltaExpected + this.metrics.tolerancems)
-      throw new ServerResponseTooSlow();
 
     if (deltaAct < deltaExpected - this.metrics.tolerancems)
       throw new ServerResponseTooQuick();
@@ -141,14 +189,24 @@ export class WSClient {
       throw new ServerResponseUnexpectedMessage();
   }
 
-  //TODO check all is set and ready
-  public connectAndPoll() {
+  public connectAndPoll(): throwsTypedErrors {
+    if (this.seqcur == CURSOR_NOT_SET)
+      throw new NothingToDo(
+        "the seq of protocol elements to monitor is probably not set"
+      );
+    if (this.isAlive()) throw new ClientAlreadyBusy();
+
     this._wsc = new WebSocket(this.wso.url);
     this._wsc.on("message", (msg) => this.process(msg));
     //TODO mb? here we can reuse advanceMetrics() which can move cur from -1 to 0 and update ts
     //...TODO mb? this approach may have some benefits
     // ...TODO mb? yet the readability will definitely suffer
-    this._wsc.on("open", () => (this.metrics.b = now()));
+    this._wsc.on("open", () => {
+      this.metrics.a = now();
+
+      this.advanceMetrics();
+      this.resumeTimingsMonitoring();
+    });
 
     //TODO on close - check if premature via peeking into the metrics
   }
@@ -180,7 +238,7 @@ function init() {
   }
 }
 
-function main() {
+function main(url: any) {
   new WSClient({ url: url as string }, expectedServerSeq).connectAndPoll();
 }
 
@@ -188,5 +246,5 @@ function main() {
 // https://nodejs.org/api/modules.html#accessing-the-main-module
 if (require.main === module) {
   init();
-  main();
+  main(url);
 }
