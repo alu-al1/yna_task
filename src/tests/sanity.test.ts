@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 
-import { dlog, init_debug } from "../shared";
+import { dlog, init_debug } from "../logger";
 init_debug({ DEBUG: "true" });
 
 const prefix = "[sanity]";
