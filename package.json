@@ -17,7 +17,8 @@
     "build_tests": "npm run clean_tests && tsc src/tests/* --outDir build ## for now running tests on js rather than ts",
     "probe_test_tools": "npx jest --version && npx ts-jest --version && which which",
     "clean_tests": "rm -rf build/tests/*",
-    "test": "npx jest --runInBand build/tests # TODO alloc safe ports pool to be able to run several servers at once"
+    "tests": "npx jest build/tests",
+    "test_one": "npx jest build/tests/server.client.test ## TODO --trace-warnings "
   },
   "keywords": [],
   "author": "alu_al1",
