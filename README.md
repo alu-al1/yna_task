@@ -1,6 +1,8 @@
 # YNA Task
 
-This is my implementation of a given task by the company I will refer to as **YNA**.
+This is my implementation of a given task by the company I will refer to as **YNA**. 
+
+**NB:** I tend to write less unless I'm hyperfocused or feel the need to prove something.
 
 ### Prerequisites
 
