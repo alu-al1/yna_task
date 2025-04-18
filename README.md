@@ -1,6 +1,8 @@
 # YNA Task
 
-This is my implementation of a given task by the company I will refer to as **YNA**. 
+This is my implementation of a given task by the company I will refer to as **YNA**.
+
+For a simple version please refer to [another branch](https://github.com/alu-al1/yna_task/tree/kiss_principle)
 
 **NB:** I tend to write less unless I'm hyperfocused or feel the need to prove something.
 
