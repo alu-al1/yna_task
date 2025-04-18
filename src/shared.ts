@@ -1,4 +1,6 @@
 import { exit } from "process";
+import { WebSocket } from "ws";
+
 
 export const strToBool = (mbstr: string | undefined): boolean =>
   mbstr ? mbstr.toLowerCase() == "true" : false;
@@ -32,5 +34,9 @@ export const tryFmtDate = (
   }
 };
 
+export const connIsAlive = (conn?: WebSocket) =>
+  !!conn && conn.readyState in [conn.OPEN, conn.CONNECTING];
+
 // alt set exit code to process
 export const die = (code: number = 1) => exit(code);
+

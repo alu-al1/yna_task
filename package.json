@@ -12,13 +12,7 @@
     "build_client": "tsc src/client.ts --outDir build",
     "xbuild_client": "tsc src/client.ts --outDir $(tsc --project tsconfig.json --showConfig | jq -r '.compilerOptions.outDir')",
     "server": "node build/server.js",
-    "client": "node build/client.js",
-    "init_test_env": "npm install --save-dev jest ts-jest @types/jest && npx ts-jest config:init",
-    "build_tests": "npm run clean_tests && tsc src/tests/* --outDir build ## for now running tests on js rather than ts",
-    "probe_test_tools": "npx jest --version && npx ts-jest --version && which which",
-    "clean_tests": "rm -rf build/tests/*",
-    "tests": "npx jest build/tests",
-    "test_one": "npx jest build/tests/server.client.test ## TODO --trace-warnings "
+    "client": "node build/client.js"
   },
   "keywords": [],
   "author": "alu_al1",
