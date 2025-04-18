@@ -62,8 +62,10 @@ npm run build_server && npm WSS_PORT=<available_port> run server
 ```bash
 npm run build_client && npm WSS_URL=<url_to_server> run client
 ```
+> ℹ️ Both server and client will provide you with `USAGE:` message if something is missing.
 
 Both `server.ts` and `client.ts` include Node's variant of `if __name__ == "__main__"` and can be imported and reused with custom presets.
+
 
 ---
 
